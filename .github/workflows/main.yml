@@ -1,0 +1,35 @@
+name: PubMed_Bot Daily Report
+
+on:
+  schedule:
+    # Runs daily at 20:00 Taipei Time (UTC 12:00)
+    - cron: '0 12 * * *'
+  workflow_dispatch: # Allows manual execution from the Actions tab
+
+jobs:
+  run-pubmed-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Execute Script
+        env:
+          PUBMED_API_KEY: ${{ secrets.PUBMED_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ZOTERO_API_KEY: ${{ secrets.ZOTERO_API_KEY }}
+          ZOTERO_USER_ID: ${{ secrets.ZOTERO_USER_ID }}
+          ZOTERO_COLLECTION_ID: ${{ secrets.ZOTERO_COLLECTION_ID }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+        run: python pubmed_automation.py
