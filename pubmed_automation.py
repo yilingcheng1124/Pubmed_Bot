@@ -287,9 +287,10 @@ def fetch_details(id_list):
 def send_email(subject, html_content):
     try:
         print("\nSending email...")
+        receivers = [r.strip() for r in RECEIVER_EMAIL.split(",")]
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
-        msg['To'] = RECEIVER_EMAIL
+        msg['To'] = ", ".join(receivers)
         msg['Subject'] = subject
         
         msg.attach(MIMEText(html_content, 'html'))
@@ -297,7 +298,8 @@ def send_email(subject, html_content):
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.send_message(msg)
+        for receiver in receivers:
+            server.sendmail(SENDER_EMAIL, receiver, msg.as_string())
         server.quit()
         print(f"Email successfully sent to {RECEIVER_EMAIL}")
     except Exception as e:
