@@ -45,7 +45,7 @@ SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 RECEIVER_EMAIL = os.getenv("RECEIVER_EMAIL")
 
 # Construct the query components
-CORE_QUERY = '(COPD OR asthma OR bronchiectasis OR IPF OR "Pulmonary fibrosis" OR "smoking cessation" OR "Catheter-related bloodstream infection" OR CRBSI OR "catheter-associated urinary tract infection" OR CAUTI OR "ventilator-associated pneumonia" OR VAP OR "osteoinductive factor" OR BICRI OR REVOCART OR minocycline OR fluzole)'
+CORE_QUERY = '(COPD OR "chronic obstructive pulmonary disease" OR asthma OR bronchiectasis OR IPF OR "Pulmonary fibrosis" OR "smoking cessation" OR "Catheter-related bloodstream infection" OR CRBSI OR "catheter-associated urinary tract infection" OR CAUTI OR "ventilator-associated pneumonia" OR VAP OR "osteoinductive factor" OR BICRI OR REVOCART OR minocycline OR fluzole)'
 STUDY_TYPE_FILTER = 'AND (Randomized Controlled Trial[PT] OR Meta-Analysis[PT] OR Systematic Review[PT])'
 NEGATIVE_FILTER = 'NOT (pediatric OR child OR children OR infants OR neonatal)'
 
@@ -164,7 +164,9 @@ Abstract: {abstract}
 def search_pubmed():
     """Search PubMed and retrieve a list of PMIDs matching the criteria from the last 24 hours."""
     search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
-    params = {
+    
+    # Search 1: by EDAT (articles newly entered into PubMed)
+    params_edat = {
         "db": "pubmed",
         "term": FULL_QUERY,
         "reldate": 1,
@@ -173,14 +175,32 @@ def search_pubmed():
         "api_key": PUBMED_API_KEY,
         "retmax": 100
     }
+
+    # Search 2: by MHDA (articles that completed MeSH indexing today)
+    params_mhda = {
+        "db": "pubmed",
+        "term": FULL_QUERY,
+        "reldate": 1,
+        "datetype": "mhda",
+        "retmode": "json",
+        "api_key": PUBMED_API_KEY,
+        "retmax": 100
+    }
     
     try:
-        response = requests.get(search_url, params=params)
-        response.raise_for_status()
-        data = response.json()
+        response_edat = requests.get(search_url, params=params_edat)
+        response_edat.raise_for_status()
+        data_edat = response_edat.json()
+        pmids_from_edat = data_edat.get("esearchresult", {}).get("idlist", [])
         
-        id_list = data.get("esearchresult", {}).get("idlist", [])
-        return id_list
+        response_mhda = requests.get(search_url, params=params_mhda)
+        response_mhda.raise_for_status()
+        data_mhda = response_mhda.json()
+        pmids_from_mhda = data_mhda.get("esearchresult", {}).get("idlist", [])
+        
+        # Merge results and remove duplicates by PMID
+        all_pmids = list(set(pmids_from_edat + pmids_from_mhda))
+        return all_pmids
     except Exception as e:
         print(f"Error searching PubMed: {e}")
         return []
