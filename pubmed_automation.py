@@ -52,8 +52,9 @@ NEGATIVE_FILTER = 'NOT (pediatric OR child OR children OR infants OR neonatal)'
 # Combine into a single comprehensive query
 FULL_QUERY = f"{CORE_QUERY} {STUDY_TYPE_FILTER} {NEGATIVE_FILTER}"
 
+client = None
 if genai and GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
 # Initialize Zotero instance
 zot = None
@@ -132,8 +133,10 @@ Title: {title}
 Abstract: {abstract}
 """
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt
+        )
         text = response.text.strip()
         
         # Clean potential markdown wrappers
