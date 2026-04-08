@@ -6,7 +6,6 @@ query:
 search:
   datetype:
     - edat
-    - mhda
 
 report:
   gemini_model: 'gemini-2.5-flash'

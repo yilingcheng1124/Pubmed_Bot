@@ -199,31 +199,14 @@ def search_pubmed():
         "retmax": 100
     }
 
-    # Search 2: by MHDA (articles that completed MeSH indexing today)
-    params_mhda = {
-        "db": "pubmed",
-        "term": FULL_QUERY,
-        "mindate": yesterday,
-        "maxdate": yesterday,
-        "datetype": "mhda",
-        "retmode": "json",
-        "api_key": PUBMED_API_KEY,
-        "retmax": 100
-    }
-    
     try:
         response_edat = requests.get(search_url, params=params_edat)
         response_edat.raise_for_status()
         data_edat = response_edat.json()
         pmids_from_edat = data_edat.get("esearchresult", {}).get("idlist", [])
         
-        response_mhda = requests.get(search_url, params=params_mhda)
-        response_mhda.raise_for_status()
-        data_mhda = response_mhda.json()
-        pmids_from_mhda = data_mhda.get("esearchresult", {}).get("idlist", [])
-        
-        # Merge results and remove duplicates by PMID
-        all_pmids = list(set(pmids_from_edat + pmids_from_mhda))
+        # Remove duplicates by PMID just in case
+        all_pmids = list(set(pmids_from_edat))
         return all_pmids
     except Exception as e:
         print(f"Error searching PubMed: {e}")
