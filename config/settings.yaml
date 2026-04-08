@@ -8,6 +8,6 @@ search:
     - edat
 
 report:
-  gemini_model: 'gemini-1.5-flash'
+  gemini_model: 'gemini-2.5-flash'
   language: zh-TW
   email_subject_prefix: '[Future Lab]'
