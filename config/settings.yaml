@@ -4,8 +4,10 @@ query:
   negative_filter: 'NOT (pediatric OR child OR children OR infants OR neonatal OR animal OR rat OR rats OR mouse OR mice OR murine OR rodent OR "in vitro" OR "cell line" OR "animal model" OR thoracotomy OR lobectomy OR pneumonectomy OR "nerve block" OR "plane block" OR "serratus block" OR perioperative OR intraoperative OR "general anesthesia" OR anaesthesia OR "surgical resection" OR "traditional Chinese medicine" OR "Chinese herbal" OR acupuncture OR moxibustion OR "herbal medicine" OR "folk medicine" OR cupping)'
 
 search:
+  # mhda = MeSH date (when indexing completes and [PT]/[MH] tags are applied).
+  # Must NOT be 'edat' while the query filters on [PT]/[MH] tags, or it returns ~0 daily.
   datetype:
-    - edat
+    - mhda
 
 report:
   gemini_model: 'gemini-2.5-flash'

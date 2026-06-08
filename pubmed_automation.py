@@ -53,6 +53,16 @@ CORE_QUERY = settings['query']['core']
 STUDY_TYPE_FILTER = settings['query']['study_type_filter']
 NEGATIVE_FILTER = settings['query']['negative_filter']
 
+# Date axis for the daily search window.
+# NOTE: The query filters on Publication Type ([PT]) and MeSH ([MH]) tags, which are
+# only assigned when an article completes MeSH indexing -- typically days to weeks AFTER
+# it first enters PubMed. Searching by 'edat' (entry date) therefore matches brand-new,
+# un-indexed records that lack those tags, yielding ~0 results every day. 'mhda' (MeSH
+# date) aligns the window with when those tags are actually applied.
+_search_cfg = settings.get('search', {}) or {}
+_dt = _search_cfg.get('datetype', 'mhda')
+SEARCH_DATETYPE = _dt[0] if isinstance(_dt, list) and _dt else (_dt if isinstance(_dt, str) else 'mhda')
+
 GEMINI_MODEL = settings['report']['gemini_model']
 EMAIL_SUBJECT_PREFIX = settings['report']['email_subject_prefix']
 REPORT_LANGUAGE = settings['report']['language']
@@ -186,27 +196,27 @@ def search_pubmed():
     search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     
     yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y/%m/%d')
-    
-    # Search 1: by EDAT (articles newly entered into PubMed)
-    params_edat = {
+
+    # Search by MeSH date so the window matches when [PT]/[MH] tags are applied (see SEARCH_DATETYPE note)
+    params = {
         "db": "pubmed",
         "term": FULL_QUERY,
         "mindate": yesterday,
         "maxdate": yesterday,
-        "datetype": "edat",
+        "datetype": SEARCH_DATETYPE,
         "retmode": "json",
         "api_key": PUBMED_API_KEY,
         "retmax": 100
     }
 
     try:
-        response_edat = requests.get(search_url, params=params_edat)
-        response_edat.raise_for_status()
-        data_edat = response_edat.json()
-        pmids_from_edat = data_edat.get("esearchresult", {}).get("idlist", [])
-        
+        response = requests.get(search_url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        pmids = data.get("esearchresult", {}).get("idlist", [])
+
         # Remove duplicates by PMID just in case
-        all_pmids = list(set(pmids_from_edat))
+        all_pmids = list(set(pmids))
         return all_pmids
     except Exception as e:
         print(f"Error searching PubMed: {e}")
