@@ -67,6 +67,12 @@ GEMINI_MODEL = settings['report']['gemini_model']
 EMAIL_SUBJECT_PREFIX = settings['report']['email_subject_prefix']
 REPORT_LANGUAGE = settings['report']['language']
 
+# Ordered list of models to try. When the primary model returns 503/UNAVAILABLE
+# (overloaded) and retries are exhausted, fall back to the next model instead of
+# giving up. Configurable via report.gemini_fallback_models in settings.yaml.
+_fallbacks = settings['report'].get('gemini_fallback_models', []) or []
+GEMINI_MODELS = [GEMINI_MODEL] + [m for m in _fallbacks if m and m != GEMINI_MODEL]
+
 # Combine into a single comprehensive query
 FULL_QUERY = f"{CORE_QUERY} {STUDY_TYPE_FILTER} {NEGATIVE_FILTER}"
 
@@ -150,46 +156,65 @@ Please output your response STRICTLY as a JSON object with the exact following s
 Title: {title}
 Abstract: {abstract}
 """
-    max_retries = 6
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt
-            )
-            text = response.text.strip()
-            
-            # Clean potential markdown wrappers
-            if text.startswith("```json"):
-                text = text[7:]
-            elif text.startswith("```"):
-                text = text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-            
-            result = json.loads(text)
-            return {
-                "Research Method": result.get("Research Method", "Unclear"),
-                "n-Value": result.get("n-Value", "Unclear"),
-                "Abstract Summary": result.get("Abstract Summary", "Unclear"),
-                "Impact & Evidence Rating": result.get("Impact & Evidence Rating", "Unclear")
-            }
-        except Exception as e:
-            error_str = str(e).upper()
-            if "429" in error_str or "503" in error_str or "RESOURCE_EXHAUSTED" in error_str or "UNAVAILABLE" in error_str or "TIMEOUT" in error_str:
-                if attempt < max_retries - 1:
-                    wait_time = 15 * (2 ** attempt)
-                    print(f"API error (attempt {attempt + 1} of {max_retries}): {e}. Waiting {wait_time} seconds...")
-                    time.sleep(wait_time)
-                    continue
-            print(f"Error during Gemini analysis: {e}")
-            return {
-                "Research Method": "Error",
-                "n-Value": "Error",
-                "Abstract Summary": "Error",
-                "Impact & Evidence Rating": "Error"
-            }
+    overload_markers = ("429", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "TIMEOUT", "OVERLOADED")
+    max_retries = 4  # per model; on overload we switch to the next fallback model rather than waiting forever
+    last_error = None
+
+    for model_name in GEMINI_MODELS:
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+                text = response.text.strip()
+
+                # Clean potential markdown wrappers
+                if text.startswith("```json"):
+                    text = text[7:]
+                elif text.startswith("```"):
+                    text = text[3:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                text = text.strip()
+
+                result = json.loads(text)
+                return {
+                    "Research Method": result.get("Research Method", "Unclear"),
+                    "n-Value": result.get("n-Value", "Unclear"),
+                    "Abstract Summary": result.get("Abstract Summary", "Unclear"),
+                    "Impact & Evidence Rating": result.get("Impact & Evidence Rating", "Unclear")
+                }
+            except Exception as e:
+                last_error = e
+                error_str = str(e).upper()
+                is_overload = any(m in error_str for m in overload_markers)
+
+                if is_overload:
+                    if attempt < max_retries - 1:
+                        wait_time = 15 * (2 ** attempt)
+                        print(f"[{model_name}] API error (attempt {attempt + 1} of {max_retries}): {e}. Waiting {wait_time} seconds...")
+                        time.sleep(wait_time)
+                        continue
+                    # Retries exhausted on this model -> fall back to the next model in the list
+                    print(f"[{model_name}] Overloaded after {max_retries} attempts. Trying fallback model if available...")
+                    break
+                # Non-overload error (e.g. malformed JSON, bad request): unlikely to differ across models
+                print(f"[{model_name}] Non-retryable error during Gemini analysis: {e}")
+                return {
+                    "Research Method": "Error",
+                    "n-Value": "Error",
+                    "Abstract Summary": "Error",
+                    "Impact & Evidence Rating": "Error"
+                }
+
+    print(f"Error during Gemini analysis: all models exhausted ({', '.join(GEMINI_MODELS)}). Last error: {last_error}")
+    return {
+        "Research Method": "Error",
+        "n-Value": "Error",
+        "Abstract Summary": "Error",
+        "Impact & Evidence Rating": "Error"
+    }
 
 def search_pubmed():
     """Search PubMed and retrieve a list of PMIDs matching the criteria from yesterday."""

@@ -11,5 +11,9 @@ search:
 
 report:
   gemini_model: 'gemini-2.5-flash'
+  # Tried in order when the primary model returns 503/UNAVAILABLE (overloaded).
+  gemini_fallback_models:
+    - 'gemini-2.5-flash-lite'
+    - 'gemini-2.0-flash'
   language: zh-TW
   email_subject_prefix: '[Future Lab]'
