@@ -22,6 +22,18 @@ except ImportError:
     print("Warning: pyzotero not installed. Please 'pip install pyzotero'")
     zotero = None
 
+try:
+    from google.oauth2.credentials import Credentials as GoogleUserCredentials
+    from googleapiclient.discovery import build as google_build
+    from googleapiclient.http import MediaInMemoryUpload
+except ImportError:
+    print("Warning: google-api-python-client not installed. Please 'pip install google-api-python-client google-auth'")
+    GoogleUserCredentials = None
+    google_build = None
+    MediaInMemoryUpload = None
+
+import re
+
 # Ensure stdio uses utf-8 to handle special characters from PubMed
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -44,6 +56,15 @@ ZOTERO_COLLECTION_ID = os.getenv("ZOTERO_COLLECTION_ID")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 RECEIVER_EMAIL = os.getenv("RECEIVER_EMAIL")
+
+# Google Drive Configuration (Branch C: export Obsidian notes)
+# Uses OAuth user credentials (a refresh token from your own account), NOT a
+# service account -- service accounts have no Drive storage quota on personal
+# Gmail and cannot upload there.
+GDRIVE_CLIENT_ID = os.getenv("GDRIVE_CLIENT_ID")
+GDRIVE_CLIENT_SECRET = os.getenv("GDRIVE_CLIENT_SECRET")
+GDRIVE_REFRESH_TOKEN = os.getenv("GDRIVE_REFRESH_TOKEN")
+GDRIVE_FOLDER_ID = os.getenv("GDRIVE_FOLDER_ID")
 
 # Construct the query components
 with open('config/settings.yaml', 'r', encoding='utf-8') as f:
@@ -87,6 +108,23 @@ if zotero:
         zot = zotero.Zotero(ZOTERO_USER_ID, 'user', ZOTERO_API_KEY)
     except Exception as e:
         print(f"Error initializing Zotero: {e}")
+
+# Initialize Google Drive service (Branch C). Stays None (and Branch C is skipped)
+# unless all four GDRIVE_* env vars are set.
+drive_service = None
+if google_build and GoogleUserCredentials and all([GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET, GDRIVE_REFRESH_TOKEN, GDRIVE_FOLDER_ID]):
+    try:
+        _gdrive_creds = GoogleUserCredentials(
+            token=None,
+            refresh_token=GDRIVE_REFRESH_TOKEN,
+            client_id=GDRIVE_CLIENT_ID,
+            client_secret=GDRIVE_CLIENT_SECRET,
+            token_uri="https://oauth2.googleapis.com/token",
+            scopes=["https://www.googleapis.com/auth/drive.file"],
+        )
+        drive_service = google_build("drive", "v3", credentials=_gdrive_creds, cache_discovery=False)
+    except Exception as e:
+        print(f"Error initializing Google Drive: {e}")
 
 def ingest_to_zotero(title, abstract, url, pmid, authors, journal, journal_abbr, date, doi, volume, issue, pages):
     """Branch A: Sterile Zotero Ingestion using official NCBI metadata."""
@@ -216,6 +254,49 @@ Abstract: {abstract}
         "Impact & Evidence Rating": "Error"
     }
 
+def sanitize_filename(name, max_len=120):
+    """Strip characters illegal in Windows/Obsidian filenames and cap the length."""
+    name = re.sub(r'[\\/:*?"<>|#^\[\]]', '', name or "")
+    name = name.strip().strip('.').strip()
+    if len(name) > max_len:
+        name = name[:max_len].rstrip()
+    return name or "untitled"
+
+def build_markdown_note(record):
+    """Render one article as a basic-style Obsidian note (no frontmatter; fields in body)."""
+    return (
+        f"# {record['Title']}\n\n"
+        f"- **PMID:** {record['PMID']}\n"
+        f"- **Link:** {record['URL']}\n"
+        f"- **Research Method:** {record['Research Method']}\n"
+        f"- **n-Value:** {record['n-Value']}\n"
+        f"- **Impact & Evidence Rating:** {record['Impact & Evidence Rating']}\n\n"
+        f"## 摘要（中文）\n{record['Abstract Summary']}\n\n"
+        f"## Original Abstract (EN)\n{record['Abstract']}\n"
+    )
+
+def export_to_gdrive(record, date_str):
+    """Branch C: write one Markdown note per article into the Obsidian vault folder on Google Drive."""
+    if not drive_service:
+        print(f"[GDrive] Not configured. Skipping PMID: {record['PMID']}")
+        return False
+    try:
+        filename = f"{date_str}_{sanitize_filename(record['Title'])}.md"
+        content = build_markdown_note(record)
+        media = MediaInMemoryUpload(content.encode('utf-8'), mimetype='text/markdown', resumable=False)
+        file_metadata = {'name': filename, 'parents': [GDRIVE_FOLDER_ID]}
+        drive_service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id',
+            supportsAllDrives=True
+        ).execute()
+        print(f"[GDrive] Exported note: {filename}")
+        return True
+    except Exception as e:
+        print(f"[GDrive] Failed to export PMID {record['PMID']}: {e}")
+        return False
+
 def search_pubmed():
     """Search PubMed and retrieve a list of PMIDs matching the criteria from yesterday."""
     search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
@@ -319,18 +400,14 @@ def fetch_details(id_list):
             url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
             
             # --- PARALLEL ARCHITECTURE START ---
-            
+
             # Branch A: Sterile Zotero Ingestion (Source of Truth)
             ingest_to_zotero(title, abstract, url, pmid, authors, journal, journal_abbr, date_str, doi, volume, issue, pages)
-            
+
             # Branch B: Gemini AI Analysis (Clinical Assistant)
             ai_data = analyze_with_gemini(title, abstract)
-            
-            # --- PARALLEL ARCHITECTURE END ---
-            
-            time.sleep(13) # Prevent potential rate limiting from free tier
-            
-            results.append({
+
+            record = {
                 "PMID": pmid,
                 "Title": title,
                 "URL": url,
@@ -339,8 +416,17 @@ def fetch_details(id_list):
                 "n-Value": ai_data["n-Value"],
                 "Abstract Summary": ai_data["Abstract Summary"],
                 "Impact & Evidence Rating": ai_data["Impact & Evidence Rating"]
-            })
-            
+            }
+
+            # Branch C: Export Markdown note into the Obsidian vault on Google Drive
+            export_to_gdrive(record, datetime.now().strftime('%Y-%m-%d'))
+
+            # --- PARALLEL ARCHITECTURE END ---
+
+            time.sleep(13) # Prevent potential rate limiting from free tier
+
+            results.append(record)
+
         return results
     except Exception as e:
         print(f"Error fetching/parsing details from PubMed: {e}")
