@@ -165,17 +165,88 @@ Each report (email + Obsidian note) shows the **journal, axis, and SJR grade**, 
 
 ---
 
-## 8. Configuration & maintenance ｜ 設定與維護
+## 8. Configuration reference — `config/settings.yaml` ｜ 設定參考
 
-**EN**
-- Edit search axes, keywords, negatives, SJR thresholds, and the Gemini model in **`config/settings.yaml`** — no code changes needed.
-- `sjr_categories` names **must match the SCImago CSV exactly** (e.g. there is no "Tissue Engineering and Biomaterials" category).
-- Refresh `data/scimago.csv.gz` once a year; re-run `get_refresh_token.py` if the Drive token is ever revoked.
+**EN** — Everything tunable lives in `config/settings.yaml`; no code edits needed. The file has four top-level blocks:
 
-**中文**
-- 搜尋軸、關鍵字、負向、SJR 門檻、Gemini 模型都在 **`config/settings.yaml`** 調整，不必改程式。
-- `sjr_categories` 名稱**必須與 SCImago CSV 完全一致**（例如並沒有「Tissue Engineering and Biomaterials」這個分類）。
-- `data/scimago.csv.gz` 一年更新一次；Drive token 若被撤銷就重跑 `get_refresh_token.py`。
+**中文** — 所有可調項都在 `config/settings.yaml`，不必改程式。檔案分四個頂層區塊：
+
+```yaml
+query:     # what to search for (axes, keywords, negative filters) ｜ 搜尋什麼（軸、關鍵字、負向）
+search:    # date window & pacing ｜ 日期窗與節流
+sjr:       # journal-quality gate ｜ 期刊品質門檻
+report:    # Gemini model, email, SMTP ｜ Gemini 模型、email、SMTP
+```
+
+### 8.1 Adding / editing a search axis ｜ 新增或修改搜尋軸
+
+**EN** — Each entry under `query.axes` is one independent search. To add an axis, append a block with four fields:
+
+**中文** — `query.axes` 底下每一筆就是一條獨立搜尋。新增一條軸，就附加一個含四個欄位的區塊：
+
+```yaml
+query:
+  axes:
+    - key: cardiology              # internal id (unique) ｜ 內部代號（唯一）
+      name: '心臟科'                # display name in reports ｜ 報告顯示名稱
+      core: '("heart failure" OR arrhythmia OR "myocardial infarction")'   # PubMed OR-query ｜ PubMed OR 查詢
+      negatives: [nonhuman, pediatric]        # which negative subgroups to apply ｜ 套用哪些負向子群
+      sjr_categories: ['Cardiology and Cardiovascular Medicine']   # SCImago category names (exact!) ｜ SCImago 分類名（須精確！）
+```
+
+> ⚠️ **`sjr_categories` must match the SCImago CSV exactly** — open `data/scimago.csv.gz`, look at the `Categories` column for the real spelling (e.g. there is **no** "Tissue Engineering and Biomaterials"). A wrong name silently falls back to the journal's overall best quartile. ｜ **`sjr_categories` 名稱必須與 SCImago CSV 完全一致** —— 打開 `data/scimago.csv.gz` 看 `Categories` 欄的實際拼法（例如**並沒有**「Tissue Engineering and Biomaterials」）。寫錯會無聲地退回用期刊整體最佳分級。
+
+### 8.2 Negative subgroups ｜ 負向子群
+
+**EN** — `query.negatives` defines reusable exclusion groups; each axis picks which to apply via its `negatives:` list. The shared `query.study_type_filter` (RCT / Meta-Analysis / Systematic Review + humans) is appended to every axis automatically.
+
+**中文** — `query.negatives` 定義可重用的排除組；每條軸用自己的 `negatives:` 清單挑要套哪些。共用的 `query.study_type_filter`（RCT / 統合分析 / 系統性回顧 + 人類）會自動接到每條軸。
+
+| Subgroup ｜ 子群 | Excludes ｜ 排除 |
+|---|---|
+| `nonhuman` | animal / rat / mouse / in vitro / cell line … |
+| `pediatric` | pediatric / child / infant / neonatal |
+| `surgical` | thoracotomy / perioperative / anaesthesia … (博晟 omits this ｜ 博晟不套) |
+| `tcm` | traditional Chinese medicine / acupuncture … |
+| `oncology` | `"Lung Neoplasms"[MH]` |
+
+### 8.3 Key reference ｜ 參數對照
+
+**`search:`**
+
+| Key | Default | Meaning ｜ 作用 |
+|---|---|---|
+| `datetype` | `[mhda]` | Date axis. Keep `mhda` (MeSH date) — `edat` returns ~0/day. ｜ 日期軸，維持 `mhda`；用 `edat` 會每天 0 篇 |
+| `lookback_days` | `1` | Window size. `1` = yesterday only. `>1` needs dedup first (else duplicates). ｜ 搜尋窗；1＝只昨天，>1 需先有去重 |
+| `retmax` | `100` | Max results per axis ｜ 每軸最大回傳數 |
+| `per_article_delay_seconds` | `13` | Pause after each passing article. Lower it on a paid API tier. ｜ 每篇通過後延遲；付費層可調小 |
+| `inter_axis_delay_seconds` | `0.5` | Pause between axis searches ｜ 軸間延遲 |
+
+**`sjr:`**
+
+| Key | Default | Meaning ｜ 作用 |
+|---|---|---|
+| `enabled` | `true` | Turn the quality gate on/off. `false` = let everything through. ｜ 品質門檻開關；false＝全放行 |
+| `csv_path` | `data/scimago.csv.gz` | SCImago table (`.gz` read transparently) ｜ SCImago 表（`.gz` 自動讀） |
+| `allowed_quartiles` | `[Q1, Q2]` | Quartiles that pass ｜ 放行的分級 |
+| `include_unindexed` | `true` | Journals absent from SCImago pass (flagged 未收錄) ｜ 未收錄期刊放行（標未收錄） |
+
+**`report:`**
+
+| Key | Default | Meaning ｜ 作用 |
+|---|---|---|
+| `gemini_model` | `gemini-2.5-flash` | Primary summarisation model ｜ 主摘要模型 |
+| `gemini_fallback_models` | `[2.5-flash-lite, 2.0-flash]` | Tried in order on 503/overload ｜ 過載時依序切換 |
+| `gemini_max_retries` | `4` | Attempts per model before fallback ｜ 每模型重試次數 |
+| `gemini_backoff_base_seconds` | `15` | Exponential backoff base (15→30→60…) ｜ 退避基數 |
+| `language` | `zh-TW` | Summary language ｜ 摘要語言 |
+| `email_subject_prefix` | `[Future Lab]` | Subject line prefix ｜ 信件主旨前綴 |
+| `smtp_host` / `smtp_port` | `smtp.gmail.com` / `587` | Mail server — change for non-Gmail ｜ 寄信伺服器，非 Gmail 可改 |
+
+### 8.4 Maintenance ｜ 維護
+
+- Refresh `data/scimago.csv.gz` once a year (see §5.2). ｜ `data/scimago.csv.gz` 一年更新一次（見 §5.2）。
+- Re-run `get_refresh_token.py` if the Drive token is ever revoked. ｜ Drive token 若失效就重跑 `get_refresh_token.py`。
 
 ---
 
