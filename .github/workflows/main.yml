@@ -2,8 +2,8 @@ name: PubMed_Bot Daily Report
 
 on:
   schedule:
-    # Runs daily at 06:00 Taipei Time (UTC 22:00)
-    - cron: '0 22 * * *'
+    # Runs daily at 04:30 Taipei Time (UTC 20:30)
+    - cron: '30 20 * * *'
   workflow_dispatch: # Allows manual execution from the Actions tab
 
 env:
