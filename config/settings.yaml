@@ -45,6 +45,7 @@ query:
       core: '("osteoinductive factor" OR OIF OR BICRI OR REVOCART OR RevoCart OR minocycline OR fluzole)'
       negatives: [nonhuman, pediatric]   # exempt 'surgical' (implant/device topics); keep noise reducers
       sjr_categories: ['Orthopedics and Sports Medicine', 'Biomedical Engineering']
+      allowed_quartiles: ['Q1', 'Q2']    # override: 博晟 keeps Q1+Q2 (narrow product line, keep recall)
 
 search:
   # mhda = MeSH date (when indexing completes and [PT]/[MH] tags are applied).
@@ -59,7 +60,7 @@ search:
 sjr:
   enabled: true
   csv_path: 'data/scimago.csv.gz'   # gzipped SCImago export; sjr.py reads .gz transparently
-  allowed_quartiles: ['Q1', 'Q2']
+  allowed_quartiles: ['Q1']         # global default: Q1 only. Axes may override (see biosheng).
   include_unindexed: true   # 寧鬆勿漏: journals absent from the SJR table pass through, flagged 未收錄
 
 report:

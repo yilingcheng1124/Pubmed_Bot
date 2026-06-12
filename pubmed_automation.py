@@ -92,6 +92,14 @@ SJR_CSV_PATH = _sjr_cfg.get('csv_path', 'data/scimago.csv')
 SJR_ALLOWED_QUARTILES = set(_sjr_cfg.get('allowed_quartiles', ['Q1', 'Q2']))
 SJR_INCLUDE_UNINDEXED = bool(_sjr_cfg.get('include_unindexed', True))
 
+# Per-axis quartile threshold: an axis may override the global allowed_quartiles
+# (e.g. biosheng keeps Q1+Q2 while the others tighten to Q1). An article that matches
+# several axes passes if its quartile clears AT LEAST ONE matched axis's threshold.
+AXIS_ALLOWED_QUARTILES = {
+    a['key']: (set(a['allowed_quartiles']) if a.get('allowed_quartiles') else SJR_ALLOWED_QUARTILES)
+    for a in AXES
+}
+
 sjr_index = sjr.SJRIndex()
 if SJR_ENABLED:
     sjr_index.load(SJR_CSV_PATH)
@@ -407,14 +415,23 @@ def build_search_summary_html(pmid_axes, filtered, passed):
         '</div>'
     )
 
-def passes_sjr(verdict):
-    """Decide whether an article clears the SJR quartile gate."""
+def passes_sjr(verdict, axis_keys):
+    """Decide whether an article clears the SJR quartile gate.
+
+    Threshold is the union of the per-axis allowed quartiles across the article's
+    matched axes (so an article matching a lenient axis like biosheng passes on Q2).
+    """
     status = verdict.get('status')
     if status == 'disabled':
         return True
     if status == 'unindexed':
         return SJR_INCLUDE_UNINDEXED
-    return verdict.get('q') in SJR_ALLOWED_QUARTILES
+    allowed = set()
+    for k in axis_keys:
+        allowed |= AXIS_ALLOWED_QUARTILES.get(k, SJR_ALLOWED_QUARTILES)
+    if not allowed:
+        allowed = SJR_ALLOWED_QUARTILES
+    return verdict.get('q') in allowed
 
 
 def fetch_details(pmid_axes):
@@ -473,7 +490,7 @@ def fetch_details(pmid_axes):
             sjr_verdict = sjr_index.lookup(issns, axis_categories_for(axis_keys))
             sjr_label = format_sjr_label(sjr_verdict)
 
-            if not passes_sjr(sjr_verdict):
+            if not passes_sjr(sjr_verdict, axis_keys):
                 filtered += 1
                 print(f"[SJR] Filtered out PMID {pmid} ({sjr_label}) - {journal}")
                 continue
