@@ -23,7 +23,11 @@ query:
 
     - key: infection_control
       name: '感控'
-      core: '("Catheter-related bloodstream infection" OR CRBSI OR "catheter-associated urinary tract infection" OR CAUTI OR "ventilator-associated pneumonia" OR VAP OR "healthcare-associated infection" OR "nosocomial infection" OR "antimicrobial stewardship" OR "infection control" OR "infection prevention" OR "outbreak")'
+      # MeSH Major Topic: focus on hospital infection prevention & control (HAIs, device-associated
+      # infections, stewardship). "Disease Outbreaks" is intentionally excluded -- community/epidemic
+      # outbreaks are public-health scope (Epidemic_Alert_Bot), and "Cross Infection" already covers
+      # in-hospital outbreaks.
+      core: '("Cross Infection"[Majr] OR "Infection Control"[Majr] OR "Catheter-Related Infections"[Majr] OR "Pneumonia, Ventilator-Associated"[Majr] OR "Antimicrobial Stewardship"[Majr] OR "Hand Hygiene"[Majr])'
       negatives: [nonhuman, pediatric, surgical, tcm, oncology]
       sjr_categories: ['Infectious Diseases', 'Microbiology (medical)']
 
