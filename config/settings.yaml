@@ -17,7 +17,13 @@ query:
   axes:
     - key: pulmonary
       name: '肺部疾病'
-      core: '(COPD OR "chronic obstructive pulmonary disease" OR asthma OR bronchiectasis OR IPF OR "Pulmonary fibrosis" OR "chronic cough" OR "interstitial lung disease" OR ILD OR pneumonia OR tuberculosis OR "lung abscess" OR "pulmonary embolism" OR "pulmonary hypertension" OR "pulmonary arterial hypertension" OR "pleural effusion" OR "Lung Diseases"[MeSH] OR "lung disease" OR "lung diseases" OR "pulmonary disease" OR "pulmonary diseases" OR "respiratory disease" OR "respiratory diseases" OR "sleep apnea" OR bronchitis OR emphysema OR pneumothorax OR empyema OR hemoptysis OR sarcoidosis OR "cystic fibrosis" OR "pulmonary nodule" OR "lung nodule" OR "pulmonary edema" OR pneumoconiosis OR "occupational lung disease" OR "respiratory tract infection")'
+      # MeSH Major Topic. "Lung Diseases"[Majr] auto-explodes to COPD/asthma/pneumonia/TB/IPF/ILD/
+      # emphysema/bronchiectasis/lung abscess/pneumoconiosis/pulmonary nodule/pulmonary edema/etc.
+      # The other terms add the non-Lung-Diseases-tree concepts (pleura, PE, pulmonary HTN, sleep
+      # apnea, respiratory failure, cough, hemoptysis, CF). "Respiratory Tract Infections" is
+      # deliberately omitted -- it pulls in upper-airway/URI, off-scope for a chest clinic, and
+      # pneumonia is already covered by Lung Diseases.
+      core: '("Lung Diseases"[Majr] OR "Pleural Diseases"[Majr] OR "Pulmonary Embolism"[Majr] OR "Hypertension, Pulmonary"[Majr] OR "Sleep Apnea Syndromes"[Majr] OR "Respiratory Insufficiency"[Majr] OR "Cough"[Majr] OR "Hemoptysis"[Majr] OR "Cystic Fibrosis"[Majr])'
       negatives: [nonhuman, pediatric, surgical, tcm, oncology]
       sjr_categories: ['Pulmonary and Respiratory Medicine']
 
