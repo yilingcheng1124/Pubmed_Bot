@@ -1,7 +1,7 @@
 # PubMed_Bot
 
-*自架的 PubMed 文獻訂閱 / 追蹤機器人 — 每日自動監測新文獻、AI 摘要，是 PubMed Email Alert／RSS 的替代方案。*
-*A self-hosted PubMed literature-alert / monitoring bot — daily automated monitoring with AI summaries, a free alternative to PubMed email alerts / RSS.*
+*自架的 PubMed 文獻訂閱 / 追蹤機器人 — 每日自動監測新文獻、AI 中文摘要，同時送進信箱、Zotero 與 Obsidian，是 PubMed Email Alert／RSS 的免費替代方案。*
+*A self-hosted PubMed literature-alert / monitoring bot — daily automated monitoring with AI summaries in Chinese, delivered to your inbox, Zotero, and Obsidian at once. A free alternative to PubMed email alerts / RSS.*
 
 ---
 
@@ -13,35 +13,43 @@ This is a little assistant that "tracks papers for you." Every morning it automa
 
 ---
 
-## 2. 最新更新 ｜ What's New
+## 2. 為什麼要用這個專案？ ｜ Why Choose This?
+
+GitHub 上「每天抓新論文寄給你」的工具其實不少，但它們大多只做到「提醒」。這個專案的定位不太一樣：它不只是一個提醒器，而是一個**接進你個人知識庫的文獻中樞**。核心優勢如下：
+
+There are quite a few "fetch new papers daily and notify you" tools out there — but most of them stop at "alerting." This project is positioned differently: it's not just another alert bot, it's a **literature hub that feeds directly into your personal knowledge base**. Here's what sets it apart:
+
+- **一次送到三個地方，各自可開關（Email＋Zotero＋Obsidian）**：多數同類工具只推送到單一去向（信箱、通訊軟體、或書目軟體擇一）；這裡一趟流程同時扇出三路——摘要寄進信箱、書目存進 Zotero、筆記（經 Google Drive）落進 Obsidian，讓新文獻**直接變成你知識庫的一部分**，而不是又一封待處理的信。
+  **Three destinations at once, each independently switchable (Email + Zotero + Obsidian)**: most similar tools push to a single place (inbox, messenger, or reference manager — pick one). Here, one run fans out to all three — the summary lands in your inbox, the reference in Zotero, and a note (via Google Drive) in Obsidian, so new papers **become part of your knowledge base directly** instead of yet another email to deal with.
+
+- **只給你「好」論文，而且每個主題可以有自己的標準**：內建期刊品質門檻（依 SCImago SJR 期刊分級過濾），先幫你擋掉大量低品質內容。更進一步：**每條主題線可以各自設定門檻**——例如主流領域只收 Q1 頂級期刊、冷門領域放寬到 Q2 以免漏掉——而不是全部共用一條粗糙的全域標準。
+  **Only good papers — and each topic gets its own bar**: a built-in journal-quality gate (filtered by SCImago SJR journal rankings) blocks the flood of low-quality content up front. Better yet, **each topic line can set its own threshold** — e.g., top-tier Q1 journals only for a mainstream field, but relaxed to Q2 for a niche topic so nothing slips through — instead of one crude global filter for everything.
+
+- **讀不完？讓 AI 幫你先讀**：每篇論文都有 AI 產生的中文摘要，信件開頭還有「一句話總結」清單，通勤時滑一下就能掌握當天重點——不是直接把英文原文摘要丟給你。
+  **Too much to read? Let AI read it first**: every paper gets an AI-generated summary in Chinese, and the email opens with a one-line-takeaway list — skim it on your commute. You're not just handed the raw English abstract.
+
+- **改設定不用改程式**：搜尋主題、關鍵字、品質門檻、輸出開關，全部集中在一個 `config/settings.yaml` 設定檔。它不是為某個疾病寫死的腳本，而是**一套任何人都能換上自己主題的通用框架**。
+  **Reconfigure without touching code**: topics, keywords, quality thresholds, and output switches all live in one `config/settings.yaml` file. It's not a script hard-coded for one disease — it's **a general framework anyone can point at their own topics**.
+
+- **完全免費、自己作主**：跑在免費的 GitHub Actions 上，資料留在你自己手上，不必付費訂閱任何服務。
+  **Free and fully in your control**: runs on free GitHub Actions, your data stays yours, and there's no paid subscription anywhere.
+
+---
+
+## 3. 最新更新 ｜ What's New
 
 最近一批更新（2026-06）：
 
 Latest updates (2026-06):
 
-- **Google Drive 授權長效化**：修好了「筆記每 7 天就同步失敗」的問題（原因是 OAuth app 停在測試模式），並在失效時於信件最上方跳提醒。
-  **Long-lived Google Drive auth**: fixed the "notes stop syncing every 7 days" bug (the OAuth app was stuck in testing mode), and now the email shows an alert at the top if the token dies.
-- **摘要不再被截斷**：修正一個會讓 AI 只讀到半篇摘要的隱形 bug，現在「一句話總結」更精準。
-  **No more truncated abstracts**: fixed a hidden bug that fed AI only half the abstract; the one-line takeaways are now sharper.
+- **摘要不再被截斷**：修正一個會讓 AI 只讀到半篇摘要的隱形 bug，「一句話總結」現在更精準、更白話。
+  **No more truncated abstracts**: fixed a hidden bug that fed AI only half the abstract; the one-line takeaways are now sharper and plainer.
+- **Google Drive 授權長效化**：修好了「筆記每 7 天就同步失敗」的問題（原因是 OAuth app 停在測試模式），並在授權失效時於信件最上方跳出提醒。
+  **Long-lived Google Drive auth**: fixed the "notes stop syncing every 7 days" bug (the OAuth app was stuck in testing mode), and the email now shows an alert at the top if the token dies.
 - **新增「戒菸」主題線**，並讓每條主題線可各自設定期刊品質門檻。
   **Added a "smoking cessation" topic line**, and each topic line can now set its own journal-quality bar.
-- **三個輸出（Email／Zotero／Obsidian）可各自開關**；強化了 GitHub 上的可搜尋度。
-  **The three outputs (Email / Zotero / Obsidian) can each be switched on/off**; improved GitHub discoverability.
-
----
-
-## 3. 為什麼要用這個專案？ ｜ Why Choose This?
-
-三個核心優點：
-
-Three core advantages:
-
-- **只給你「好」論文，不被洪水淹沒**：內建期刊品質門檻（只留 SCImago SJR 高分期刊），幫你先過濾掉大量低品質內容。
-  **Only good papers, no flood**: a built-in journal-quality gate (keeps only high-ranked SCImago SJR journals) filters out the noise for you.
-- **讀不完？讓 AI 幫你讀**：每篇都有中文摘要，開頭還有「一句話總結」清單，通勤時滑一下就掌握重點。
-  **Too much to read? Let AI read it**: every paper gets a Chinese summary, plus a one-line-takeaway list at the top — skim it on your commute.
-- **完全免費、自己作主**：跑在免費的 GitHub Actions 上，所有搜尋條件、輸出去向都能自己改，不必付費訂閱。
-  **Free and fully in your control**: runs on free GitHub Actions; every search rule and output destination is yours to change — no paid subscription.
+- **三個輸出（Email／Zotero／Obsidian）可各自開關**；主題範圍調校（肺部／重症線收斂得更準）。
+  **The three outputs (Email / Zotero / Obsidian) can each be switched on/off**; topic scopes were tuned (the pulmonary and critical-care lines are more precise now).
 
 ---
 
