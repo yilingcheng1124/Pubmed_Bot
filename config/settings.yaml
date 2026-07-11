@@ -2,102 +2,83 @@
 # var on/off: RUN_ZOTERO / RUN_EMAIL / RUN_GDRIVE (used by the GitHub Actions "Run workflow"
 # inputs, or locally e.g. `RUN_ZOTERO=off python pubmed_automation.py`).
 branches:
-  zotero: false   # Branch A — OFF: at current volume the manual Zotero curation outweighs the benefit
+  zotero: false   # Branch A — OFF
   email: true     # Branch B — Gemini email digest
-  gdrive: true    # Branch C — Obsidian notes to Google Drive
+  gdrive: false   # Branch C — OFF，只要 Email
 
 query:
-  # Applied to every axis. [PT]/[MH] tags require indexing -> pairs naturally with mhda.
   study_type_filter: 'AND (Randomized Controlled Trial[PT] OR Meta-Analysis[PT] OR Systematic Review[PT]) AND humans[MH]'
 
-  # Composable negative subgroups. Each axis lists which subgroups to apply (see axes[].negatives).
-  # Key design point: 'surgical' collides with implant/device topics, so the 博晟 axis omits it;
-  # the other three axes apply the full set (this institution has no OR/surgical care).
   negatives:
     nonhuman: 'animal OR rat OR rats OR mouse OR mice OR murine OR rodent OR "in vitro" OR "cell line" OR "animal model"'
     pediatric: 'pediatric OR child OR children OR infants OR neonatal'
     surgical: 'thoracotomy OR lobectomy OR pneumonectomy OR "nerve block" OR "plane block" OR "serratus block" OR perioperative OR intraoperative OR "general anesthesia" OR anaesthesia OR "surgical resection"'
     tcm: '"traditional Chinese medicine" OR "Chinese herbal" OR acupuncture OR moxibustion OR "herbal medicine" OR "folk medicine" OR cupping'
     oncology: '"Lung Neoplasms"[MH]'
-    neuro: '"Cerebrovascular Disorders"[Majr] OR "Brain Injuries"[Majr] OR "Intracranial Hemorrhages"[Majr]'   # stroke / ICH / SAH / TBI as major topic (for neurocritical-care exclusion)
+    neuro: '"Cerebrovascular Disorders"[Majr] OR "Brain Injuries"[Majr] OR "Intracranial Hemorrhages"[Majr]'
 
-  # Four positive axes. Each is searched independently so results carry an axis tag
-  # (used for the SJR category lookup). sjr_categories names must match the SCImago CSV exactly.
   axes:
     - key: pulmonary
       name: '肺部疾病'
-      # MeSH Major Topic. "Lung Diseases"[Majr] auto-explodes to COPD/asthma/pneumonia/TB/IPF/ILD/
-      # emphysema/bronchiectasis/lung abscess/pneumoconiosis/pulmonary nodule/pulmonary edema/etc.
-      # The other terms add the non-Lung-Diseases-tree concepts (pleura, PE, pulmonary HTN,
-      # respiratory failure, cough, hemoptysis, CF). OSA/sleep apnea is intentionally excluded.
-      # "Respiratory Tract Infections" is
-      # deliberately omitted -- it pulls in upper-airway/URI, off-scope for a chest clinic, and
-      # pneumonia is already covered by Lung Diseases.
       core: '("Lung Diseases"[Majr] OR "Pleural Diseases"[Majr] OR "Pulmonary Embolism"[Majr] OR "Hypertension, Pulmonary"[Majr] OR "Respiratory Insufficiency"[Majr] OR "Cough"[Majr] OR "Hemoptysis"[Majr] OR "Cystic Fibrosis"[Majr])'
       negatives: [nonhuman, pediatric, surgical, tcm, oncology]
       sjr_categories: ['Pulmonary and Respiratory Medicine']
 
     - key: infection_control
       name: '感控'
-      # MeSH Major Topic: focus on hospital infection prevention & control (HAIs, device-associated
-      # infections, stewardship). "Disease Outbreaks" is intentionally excluded -- community/epidemic
-      # outbreaks are public-health scope (Epidemic_Alert_Bot), and "Cross Infection" already covers
-      # in-hospital outbreaks.
       core: '("Cross Infection"[Majr] OR "Infection Control"[Majr] OR "Catheter-Related Infections"[Majr] OR "Pneumonia, Ventilator-Associated"[Majr] OR "Antimicrobial Stewardship"[Majr] OR "Hand Hygiene"[Majr])'
       negatives: [nonhuman, pediatric, surgical, tcm, oncology]
       sjr_categories: ['Infectious Diseases', 'Microbiology (medical)']
 
     - key: critical_care
       name: '重症'
-      # MeSH Major Topic ([Majr]): the article's MAIN focus must be critical care, not a passing
-      # mention -- this cuts the free-text noise (e.g. a psychiatry paper mentioning "ICU").
-      # Works because we search by mhda (indexed articles always carry MeSH).
       core: '("Critical Care"[Majr] OR "Critical Illness"[Majr] OR "Intensive Care Units"[Majr] OR "Sepsis"[Majr] OR "Shock, Septic"[Majr] OR "Respiratory Distress Syndrome"[Majr] OR "Respiratory Insufficiency"[Majr] OR "Respiration, Artificial"[Majr])'
-      negatives: [nonhuman, pediatric, surgical, tcm, oncology, neuro]   # neuro: exclude neurocritical-care (stroke/ICH/TBI)
+      negatives: [nonhuman, pediatric, surgical, tcm, oncology, neuro]
       sjr_categories: ['Critical Care and Intensive Care Medicine']
 
     - key: biosheng
       name: '博晟產品線'
       core: '("osteoinductive factor" OR OIF OR BICRI OR REVOCART OR RevoCart OR minocycline OR fluzole)'
-      negatives: [nonhuman, pediatric]   # exempt 'surgical' (implant/device topics); keep noise reducers
+      negatives: [nonhuman, pediatric]
       sjr_categories: ['Orthopedics and Sports Medicine', 'Biomedical Engineering']
-      allowed_quartiles: ['Q1', 'Q2']    # override: 博晟 keeps Q1+Q2 (narrow product line, keep recall)
+      allowed_quartiles: ['Q1', 'Q2']
 
     - key: smoking_cessation
       name: '戒菸'
-      # Dedicated axis: smoking-cessation / tobacco-control research often lives in addiction &
-      # public-health journals (Addiction, Tobacco Control, Nicotine & Tobacco Research) outside the
-      # Pulmonary SJR category, so it gets its own Q1+Q2 threshold to preserve recall.
       core: '("Smoking Cessation"[Majr] OR "Tobacco Use Cessation"[Majr] OR "Tobacco Use Disorder"[Majr] OR "Vaping"[Majr] OR "Electronic Nicotine Delivery Systems"[Majr] OR "smoking cessation" OR "tobacco cessation" OR "quit smoking" OR "smoking abstinence" OR "nicotine replacement")'
       negatives: [nonhuman, pediatric, surgical, tcm, oncology]
       sjr_categories: ['Public Health, Environmental and Occupational Health', 'Psychiatry and Mental Health', 'Pulmonary and Respiratory Medicine']
       allowed_quartiles: ['Q1', 'Q2']
 
+    - key: ebp_implementation
+      name: '實證應用/JBI'
+      core: '("Evidence-Based Practice"[Majr] OR "Guideline Adherence"[Majr] OR "Quality Improvement"[Majr] OR "Diffusion of Innovation"[Majr] OR "Translational Research, Biomedical"[Majr] OR "evidence-based practice" OR "evidence implementation" OR "best practice implementation" OR "Joanna Briggs" OR "JBI")'
+      negatives: [nonhuman, tcm]
+      sjr_categories: ['Nursing (miscellaneous)', 'Advanced and Specialized Nursing', 'Health Policy']
+      allowed_quartiles: ['Q1', 'Q2']
+
 search:
-  # mhda = MeSH date (when indexing completes and [PT]/[MH] tags are applied).
-  # Must NOT be 'edat' while the query filters on [PT]/[MH] tags, or it returns ~0 daily.
   datetype:
     - mhda
-  lookback_days: 1            # search window: 1 = yesterday only. >1 widens it but needs dedup first (else duplicates).
-  retmax: 100                 # max results returned per axis
-  per_article_delay_seconds: 13   # pause after each article that passes the SJR gate (NCBI/API courtesy; lower if on a paid tier)
-  inter_axis_delay_seconds: 0.5   # pause between the four axis searches
+  lookback_days: 1
+  retmax: 100
+  per_article_delay_seconds: 13
+  inter_axis_delay_seconds: 0.5
 
 sjr:
   enabled: true
-  csv_path: 'data/scimago.csv.gz'   # gzipped SCImago export; sjr.py reads .gz transparently
-  allowed_quartiles: ['Q1']         # global default: Q1 only. Axes may override (see biosheng).
-  include_unindexed: true   # 寧鬆勿漏: journals absent from the SJR table pass through, flagged 未收錄
+  csv_path: 'data/scimago.csv.gz'
+  allowed_quartiles: ['Q1']
+  include_unindexed: true
 
 report:
   gemini_model: 'gemini-2.5-flash'
-  # Tried in order when the primary model returns 503/UNAVAILABLE (overloaded).
   gemini_fallback_models:
     - 'gemini-2.5-flash-lite'
     - 'gemini-2.0-flash'
-  gemini_max_retries: 4             # attempts per model before falling back to the next
-  gemini_backoff_base_seconds: 15   # exponential backoff base: 15, 30, 60, 120...
+  gemini_max_retries: 4
+  gemini_backoff_base_seconds: 15
   language: zh-TW
   email_subject_prefix: '[Future Lab]'
-  smtp_host: 'smtp.gmail.com'       # change for non-Gmail SMTP providers
+  smtp_host: 'smtp.gmail.com'
   smtp_port: 587
